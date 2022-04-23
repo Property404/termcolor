@@ -166,31 +166,31 @@ pub trait WriteColor: io::Write {
 
 impl<'a, T: ?Sized + WriteColor> WriteColor for &'a mut T {
     fn supports_color(&self) -> bool {
-        (&**self).supports_color()
+        (**self).supports_color()
     }
     fn set_color(&mut self, spec: &ColorSpec) -> io::Result<()> {
-        (&mut **self).set_color(spec)
+        (**self).set_color(spec)
     }
     fn reset(&mut self) -> io::Result<()> {
-        (&mut **self).reset()
+        (**self).reset()
     }
     fn is_synchronous(&self) -> bool {
-        (&**self).is_synchronous()
+        (**self).is_synchronous()
     }
 }
 
 impl<T: ?Sized + WriteColor> WriteColor for Box<T> {
     fn supports_color(&self) -> bool {
-        (&**self).supports_color()
+        (**self).supports_color()
     }
     fn set_color(&mut self, spec: &ColorSpec) -> io::Result<()> {
-        (&mut **self).set_color(spec)
+        (**self).set_color(spec)
     }
     fn reset(&mut self) -> io::Result<()> {
-        (&mut **self).reset()
+        (**self).reset()
     }
     fn is_synchronous(&self) -> bool {
-        (&**self).is_synchronous()
+        (**self).is_synchronous()
     }
 }
 
@@ -243,17 +243,17 @@ impl FromStr for ColorChoice {
 
 impl ColorChoice {
     /// Returns true if we should attempt to write colored output.
-    fn should_attempt_color(&self) -> bool {
-        match *self {
+    fn should_attempt_color(self) -> bool {
+        match self {
             ColorChoice::Always => true,
             ColorChoice::AlwaysAnsi => true,
             ColorChoice::Never => false,
-            ColorChoice::Auto => self.env_allows_color(),
+            ColorChoice::Auto => Self::env_allows_color(),
         }
     }
 
     #[cfg(not(windows))]
-    fn env_allows_color(&self) -> bool {
+    fn env_allows_color() -> bool {
         match env::var_os("TERM") {
             // If TERM isn't set, then we are in a weird environment that
             // probably doesn't support colors.
@@ -273,7 +273,7 @@ impl ColorChoice {
     }
 
     #[cfg(windows)]
-    fn env_allows_color(&self) -> bool {
+    fn env_allows_color() -> bool {
         // On Windows, if TERM isn't set, then we shouldn't automatically
         // assume that colors aren't allowed. This is unlike Unix environments
         // where TERM is more rigorously set.
@@ -295,8 +295,8 @@ impl ColorChoice {
     /// It's possible that ANSI is still the correct choice even if this
     /// returns false.
     #[cfg(windows)]
-    fn should_ansi(&self) -> bool {
-        match *self {
+    fn should_ansi(self) -> bool {
+        match self {
             ColorChoice::Always => false,
             ColorChoice::AlwaysAnsi => true,
             ColorChoice::Never => false,
@@ -1465,7 +1465,7 @@ impl<W: io::Write> Ansi<W> {
                 )+
 
                 fmt[i] = b'm';
-                self.write_all(&fmt[0..i+1])
+                self.write_all(&fmt[0..=i])
             }}
         }
         macro_rules! write_custom {
@@ -1968,18 +1968,16 @@ impl Color {
         if codes.len() == 1 {
             if let Some(n) = parse_number(&codes[0]) {
                 Ok(Color::Ansi256(n))
+            } else if s.chars().all(|c| c.is_digit(16)) {
+                Err(ParseColorError {
+                    kind: ParseColorErrorKind::InvalidAnsi256,
+                    given: s.to_string(),
+                })
             } else {
-                if s.chars().all(|c| c.is_digit(16)) {
-                    Err(ParseColorError {
-                        kind: ParseColorErrorKind::InvalidAnsi256,
-                        given: s.to_string(),
-                    })
-                } else {
-                    Err(ParseColorError {
-                        kind: ParseColorErrorKind::InvalidName,
-                        given: s.to_string(),
-                    })
-                }
+                Err(ParseColorError {
+                    kind: ParseColorErrorKind::InvalidName,
+                    given: s.to_string(),
+                })
             }
         } else if codes.len() == 3 {
             let mut v = vec![];
@@ -1992,7 +1990,7 @@ impl Color {
             }
             Ok(Color::Rgb(v[0], v[1], v[2]))
         } else {
-            Err(if s.contains(",") {
+            Err(if s.contains(',') {
                 ParseColorError {
                     kind: ParseColorErrorKind::InvalidRgb,
                     given: s.to_string(),
